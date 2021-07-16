@@ -1,0 +1,7 @@
+{
+    "configuration": "PSRAM=disabled,PartitionScheme=default,CPUFreq=240,FlashMode=qio,FlashFreq=80,FlashSize=4M,UploadSpeed=921600,DebugLevel=info",
+    "board": "esp32:esp32:esp32",
+    "sketch": "gvh_meter.ino",
+    "port": "COM8",
+    "output": "C://tmp//ArduinoOutput"
+}
