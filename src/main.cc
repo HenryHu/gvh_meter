@@ -15,10 +15,10 @@
 
 #include "constants.h"
 
-TFT_eSPI tft = TFT_eSPI(135, 240);
+TFT_eSPI tft = TFT_eSPI();
 
 lv_disp_draw_buf_t draw_buf;
-lv_color_t lv_buf[135 * 240 / 10];
+lv_color_t lv_buf[TFT_WIDTH * TFT_HEIGHT / 10];
 lv_disp_drv_t driver;
 lv_obj_t *label, *label2, *textarea, *meter1, *meter2;
 lv_style_t style;
@@ -77,8 +77,8 @@ void init_gui() {
     lv_disp_drv_init(&driver);
     driver.flush_cb = flush_display;
     driver.draw_buf = &draw_buf;
-    driver.hor_res = 240;
-    driver.ver_res = 135;
+    driver.hor_res = TFT_HEIGHT;
+    driver.ver_res = TFT_WIDTH;
     driver.antialiasing = 0;
     lv_disp_drv_register(&driver);
 
