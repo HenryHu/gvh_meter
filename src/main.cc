@@ -21,7 +21,8 @@ lv_disp_draw_buf_t draw_buf;
 lv_color_t lv_buf[TFT_WIDTH * TFT_HEIGHT / 10];
 lv_disp_drv_t driver;
 lv_obj_t *label, *label2, *textarea, *meter1, *meter2;
-lv_style_t style;
+lv_obj_t *label_meter1, *label_meter2;
+lv_style_t meter_style, main_style;
 
 lv_meter_scale_t *scale1, *scale1x, *scale2, *scale2x;
 lv_meter_indicator_t *indic1, *indic2;
@@ -62,12 +63,11 @@ class AdvertisedDeviceCallback : public BLEAdvertisedDeviceCallbacks {
 void init_tft() {
     tft.init();
     tft.setRotation(1);
-    tft.fillScreen(TFT_BLACK);
 }
 
 void flush_display(lv_disp_drv_t * disp, const lv_area_t * area, lv_color_t * color) {
     tft.pushImage(area->x1, area->y1, area->x2 - area->x1 + 1, area->y2 - area->y1 + 1, (uint16_t *)color);
-    lv_disp_flush_ready(disp); 
+    lv_disp_flush_ready(disp);
 }
 
 void init_gui() {
@@ -82,6 +82,11 @@ void init_gui() {
     driver.antialiasing = 0;
     lv_disp_drv_register(&driver);
 
+    lv_style_init(&main_style);
+    lv_style_set_bg_color(&main_style, lv_color_black());
+    lv_style_set_text_color(&main_style, lv_color_white());
+    lv_obj_add_style(lv_scr_act(), &main_style, 0);
+
     label = lv_label_create(lv_scr_act());
     lv_obj_set_x(label, 0);
     lv_obj_set_y(label, 0);
@@ -92,6 +97,9 @@ void init_gui() {
     lv_obj_set_y(label2, 0);
     lv_obj_set_size(label, 120, 16);
 
+    lv_obj_add_style(label, &main_style, 0);
+    lv_obj_add_style(label2, &main_style, 0);
+
 /*
     textarea = lv_textarea_create(lv_scr_act());
     lv_obj_set_x(textarea, 0);
@@ -101,39 +109,49 @@ void init_gui() {
     */
 
     meter1 = lv_meter_create(lv_scr_act());
-    lv_obj_set_pos(meter1, 5, 20);
     lv_obj_set_size(meter1, 110, 110);
+    lv_obj_set_pos(meter1, 5, 20);
     scale1 = lv_meter_add_scale(meter1);
     lv_meter_set_scale_range(meter1, scale1, 200, 300, 270, 135);
-    scale1->r_mod = 20;
     lv_meter_set_scale_ticks(meter1, scale1, 0, 0, 0, lv_palette_main(LV_PALETTE_GREY));
     indic1 = lv_meter_add_needle_line(meter1, scale1, 4, lv_palette_main(LV_PALETTE_RED), 0);
     scale1x = lv_meter_add_scale(meter1);
-    scale1x->r_mod = 20;
     lv_meter_set_scale_ticks(meter1, scale1x, 21, 2, 10, lv_palette_main(LV_PALETTE_GREY));
     lv_meter_set_scale_major_ticks(meter1, scale1x, 4, 4, 15, lv_color_black(), 10);
     lv_meter_set_scale_range(meter1, scale1x, 20, 30, 270, 135);
+    label_meter1 = lv_label_create(lv_scr_act());
+    lv_obj_set_pos(label_meter1, 35, 105);
+    lv_obj_set_size(label_meter1, 50, 20);
+    lv_label_set_text(label_meter1, "");
 
     meter2 = lv_meter_create(lv_scr_act());
     lv_obj_set_pos(meter2, 125, 20);
     lv_obj_set_size(meter2, 110, 110);
     scale2 = lv_meter_add_scale(meter2);
-    scale2->r_mod = 20;
     lv_meter_set_scale_ticks(meter2, scale2, 0, 0, 0, lv_palette_main(LV_PALETTE_GREY));
     lv_meter_set_scale_range(meter2, scale2, 0, 1000, 270, 135);
     indic2 = lv_meter_add_needle_line(meter2, scale2, 4, lv_palette_main(LV_PALETTE_RED), 0);
     scale2x = lv_meter_add_scale(meter2);
-    scale2x->r_mod = 20;
     lv_meter_set_scale_ticks(meter2, scale2x, 21, 2, 10, lv_palette_main(LV_PALETTE_GREY));
     lv_meter_set_scale_major_ticks(meter2, scale2x, 5, 4, 15, lv_color_black(), 10);
     lv_meter_set_scale_range(meter2, scale2x, 0, 100, 270, 135);
+    label_meter2 = lv_label_create(lv_scr_act());
+    lv_obj_set_pos(label_meter2, 155, 105);
+    lv_obj_set_size(label_meter2, 50, 20);
+    lv_label_set_text(label_meter2, "");
 
-    lv_style_init(&style);
-    lv_style_set_bg_color(&style, lv_color_make(0, 0, 255));
-    lv_style_set_text_color(&style, lv_color_black());
-    lv_obj_add_style(label, &style, 0);
-    lv_obj_add_style(label2, &style, 0);
-    // lv_obj_add_style(textarea, &style, 0);
+    lv_style_init(&meter_style);
+    lv_style_set_bg_color(&meter_style, lv_color_make(200, 200, 200));
+    lv_style_set_text_color(&meter_style, lv_color_black());
+    lv_style_set_border_width(&meter_style, 3);
+    lv_style_set_pad_left(&meter_style, 0);
+    lv_style_set_pad_right(&meter_style, 0);
+    lv_style_set_pad_top(&meter_style, 0);
+    lv_style_set_pad_bottom(&meter_style, 0);
+    lv_obj_add_style(meter1, &meter_style, 0);
+    lv_obj_add_style(meter2, &meter_style, 0);
+    lv_obj_add_style(label_meter1, &meter_style, 0);
+    lv_obj_add_style(label_meter2, &meter_style, 0);
 
     gui_mu = xSemaphoreCreateMutex();
 }
@@ -147,7 +165,7 @@ void set_label2(const char* text) {
     MutexLock lock(gui_mu);
     lv_label_set_text(label2, text);
 }
- 
+
 void WifiConnectedCallback(WiFiEvent_t event, WiFiEventInfo_t info) {
     set_label2("Connected!");
 }
@@ -267,7 +285,9 @@ void read_gvh(BLEAdvertisedDevice& device) {
         }
         */
         lv_meter_set_indicator_value(meter1, indic1, temp * 10);
+        lv_label_set_text_fmt(label_meter1, "%.1fC", temp);
         lv_meter_set_indicator_value(meter2, indic2, hum * 10);
+        lv_label_set_text_fmt(label_meter2, "%.1f%%", hum);
     }
 
     snprintf(buf, sizeof(buf), "sensor/%s", device.getName().c_str());
