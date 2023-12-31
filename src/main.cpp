@@ -7,9 +7,9 @@
 // #include <Wire.h>
 #include <WiFi.h>
 // #include <FS.h>
-#include <BLEScan.h>
-#include <BLEUtils.h>
-#include <BLEDevice.h>
+#include <NimBLEScan.h>
+#include <NimBLEUtils.h>
+#include <NimBLEDevice.h>
 
 #include "lvgl.h"
 
@@ -50,12 +50,12 @@ class MutexLock {
 void read_gvh(BLEAdvertisedDevice& device);
 
 class AdvertisedDeviceCallback : public BLEAdvertisedDeviceCallbacks {
-    void onResult(BLEAdvertisedDevice device) {
-        if (!device.haveName()) return;
-        if (device.getName().substr(0, 7) == "GVH5102" ||
-            device.getName().substr(0, 7) == "GVH5101") {
+    void onResult(NimBLEAdvertisedDevice* device) {
+        if (!device->haveName()) return;
+        if (device->getName().substr(0, 7) == "GVH5102" ||
+            device->getName().substr(0, 7) == "GVH5101") {
             ble_found = true;
-            read_gvh(device);
+            read_gvh(*device);
         }
     }
 };
@@ -181,10 +181,10 @@ void WifiDisconnectedCallback(WiFiEvent_t event, WiFiEventInfo_t info) {
 void init_wifi() {
     WiFi.mode(WIFI_STA);
     WiFi.setHostname("esp32");
-    WiFi.onEvent(WifiConnectedCallback, SYSTEM_EVENT_STA_CONNECTED);
-    WiFi.onEvent(WifiGotIpCallback, SYSTEM_EVENT_STA_GOT_IP);
-    WiFi.onEvent(WifiDisconnectedCallback, SYSTEM_EVENT_STA_DISCONNECTED);
-    WiFi.begin(WIFI_SSID, WIFI_PASS); 
+    WiFi.onEvent(WifiConnectedCallback, ARDUINO_EVENT_WIFI_STA_CONNECTED);
+    WiFi.onEvent(WifiGotIpCallback, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+    WiFi.onEvent(WifiDisconnectedCallback, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
     set_label2("Connecting...");
 }
 
@@ -192,7 +192,7 @@ void init_ble() {
     BLEDevice::init("esp32");
     scan = BLEDevice::getScan();
     scan->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallback());
-    scan->setActiveScan(true);
+    //scan->setActiveScan(true);
     scan->setInterval(100);
     scan->setWindow(10);
 }
@@ -250,21 +250,21 @@ void check_mqtt() {
 // std::map<std::string, std::string> ble_info;
 
 void read_gvh(BLEAdvertisedDevice& device) {
-    Serial.printf("Name: %s\n", device.getName().c_str());
-    Serial.printf("Address: %s\n", device.getAddress().toString().c_str());
-    Serial.printf("RSSI: %d\n", device.getRSSI());
-    const std::vector<std::string>* data = device.getManufacturerData();
+    Serial.printf("Name: %s\r\n", device.getName().c_str());
+    Serial.printf("Address: %s\r\n", device.getAddress().toString().c_str());
+    Serial.printf("RSSI: %d\r\n", device.getRSSI());
 
     float temp = 0, hum = 0;
     int bat = 0;
     bool got_data = false;
-    for (const std::string& item : *data) {
+    for (int data_index = 0; data_index < device.getManufacturerDataCount(); ++data_index) {
+        const std::string item = device.getManufacturerData(data_index);
         if (item.length() != 8) continue;
         uint32_t raw = (item[4] << 16) | (item[5] << 8) | item[6];
         temp = raw / 1000 / 10.0;
         hum = raw % 1000 / 10.0;
         bat = item[7];
-        Serial.printf("Temp: %.1f Hum: %.1f Bat: %d%%\n", temp, hum, bat);
+        Serial.printf("Temp: %.1f Hum: %.1f Bat: %d%%\r\n", temp, hum, bat);
         got_data = true;
     }
     if (!got_data) return;
@@ -343,31 +343,55 @@ void loop() {
 }
 
 void task1_run(void* arg) {
+    scan->start(/*duration=*/60, /*scanCompleteCB=*/nullptr, /*is_continue=*/false);
+    ble_found = false;
+    int last_found = -1;
+    int counter = 0;
+    int last_scan_start = 0;
     while (true) {
-        ++loop_counter;
-        ble_found = false;
+        ++counter;
         {
             MutexLock lock(gui_mu);
-            lv_label_set_text_fmt(label, "Scanning, #%d", loop_counter);
+            if (last_found == -1) {
+                lv_label_set_text_fmt(label, "Scanning, #%d", loop_counter);
+            } else {
+                lv_label_set_text_fmt(label, "Scan #%d / #%d", loop_counter, last_found);
+            }
         }
-        scan->start(/*duration=*/60, /*is_continue=*/false);
-        scan->stop();
 
         if (ble_found) {
-            set_label1("Found");
-        } else {
-            set_label1("Not found");
+            Serial.println("Found, start a new round");
+            last_found = loop_counter;
+            scan->stop();
+            scan->clearResults();
+            ble_found = false;
+            ++loop_counter;
+
+            scan->start(/*duration=*/60, /*scanCompleteCB=*/nullptr, /*is_continue=*/false);
+            last_scan_start = counter;
         }
-        scan->clearResults();
+
+        if (counter > last_scan_start + 65) {
+            // Too long, start a new one
+            Serial.println("Too long, start a new round");
+            scan->stop();
+            scan->clearResults();
+            ble_found = false;
+            ++loop_counter;
+
+            scan->start(/*duration=*/60, /*scanCompleteCB=*/nullptr, /*is_continue=*/false);
+            last_scan_start = counter;
+        }
         delay(1000);
     }
+    scan->stop();
 }
 
 void task2_run(void* arg) {
     while (true) {
         check_mqtt();
         mqtt_client.loop();
-        mqtt_client.publish("rssi", String(WiFi.RSSI()).c_str());
+        // mqtt_client.publish("rssi", String(WiFi.RSSI()).c_str());
         delay(1000);
     }
 }
